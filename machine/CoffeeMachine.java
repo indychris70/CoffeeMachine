@@ -5,12 +5,11 @@ import java.util.Scanner;
 public class CoffeeMachine {
     private enum Messages {
         PROMPT_FILL("Write how many %s of %s you want to add:"),
-        PROMPT_ACTION("Write action (buy, fill, take):"),
+        PROMPT_ACTION("Write action (buy, fill, take, remaining, exit):"),
         PROMPT_SELECTION("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino:"),
         WITHDRAW("I gave you $%s"),
-        RESPONSE_YES("Yes, I can make that amount of coffee"),
-        RESPONSE_NO("No, I can make only %s cup(s) of coffee"),
-        RESPONSE_YES_AND("Yes, I can make that amount of coffee (and even %s more than that)");
+        RESPONSE_YES("I have enough resources, making you a coffee!"),
+        RESPONSE_NO("Sorry, not enough %s!");
 
         String text;
 
@@ -24,9 +23,12 @@ public class CoffeeMachine {
     }
 
     public static void main(String[] args) {
-        printInventory();
-        fulfillRequest(getStringInput(Messages.PROMPT_ACTION));
-        printInventory();
+        final String EXIT_SELECTION = "exit";
+        String selection;
+        do {
+            selection = getStringInput(Messages.PROMPT_ACTION);
+            fulfillRequest(selection);
+        } while (!selection.equals(EXIT_SELECTION));
     }
 
     private static void fulfillRequest(String action) {
@@ -40,11 +42,20 @@ public class CoffeeMachine {
             case "take":
                 take();
                 break;
+            case "remaining":
+                printInventory();
+                break;
+            case "exit":
+                break;
         }
     }
 
     private static void buy() {
-        updateInventory(getIntInput(Messages.PROMPT_SELECTION), 1);
+        String selection = getStringInput(Messages.PROMPT_SELECTION);
+        if ("back".equals(selection))  {
+            return;
+        }
+        updateInventory(Integer.parseInt(selection), 1);
     }
 
     private static void updateInventory(int selection, int numberOfCups) {
@@ -59,10 +70,10 @@ public class CoffeeMachine {
             case 3:
                 recipe = Recipe.CAPPUCCINO;
                 break;
+            default:
+                return;
         }
-        for (Inventory ingredient : recipe.getIngredients()) {
-            ingredient.setTotalQuantity(ingredient.getTotalQuantity() - recipe.getRequirement(ingredient) * numberOfCups);
-        }
+        checkRequest(numberOfCups, recipe);
     }
 
     private static void fill() {
@@ -111,26 +122,32 @@ public class CoffeeMachine {
     }
 
     private static void checkRequest (int cups, Recipe recipe) {
-        int minimumDifference = getMinimumDifference(cups, recipe);
-        if (minimumDifference > 0) {
-            Messages.RESPONSE_YES_AND.print(Integer.toString(minimumDifference));
-        } else if (minimumDifference < 0) {
-            Messages.RESPONSE_NO.print(Integer.toString(cups + minimumDifference));
-        } else {
+        Inventory constrainedIngredient = getConstrainedIngredient(cups, recipe);
+        int excessCupsAfterRequest = cupsRemainingAfterRequest(cups, constrainedIngredient.getTotalQuantity(), recipe.getRequirement(constrainedIngredient));
+        if (excessCupsAfterRequest >= 0) {
             Messages.RESPONSE_YES.print();
+            for (Inventory ingredient : recipe.getIngredients()) {
+                ingredient.setTotalQuantity(ingredient.getTotalQuantity() - recipe.getRequirement(ingredient) * cups);
+            }
+        } else {
+            Messages.RESPONSE_NO.print(constrainedIngredient.getText());
         }
     }
 
-    private static int getMinimumDifference(int cups, Recipe recipe) {
+    private static Inventory getConstrainedIngredient(int cups, Recipe recipe) {
+        Inventory constrainedIngredient = Inventory.WATER;
         int minimumDifference = Integer.MAX_VALUE;
         int cupsRemaining;
         for (Inventory ingredient : recipe.getIngredients()) {
-            cupsRemaining = cupsRemainingAfterRequest(cups, ingredient.getTotalQuantity(), recipe.getRequirement(ingredient));
-            if (cupsRemaining < minimumDifference) {
-                minimumDifference = cupsRemaining;
+            if (ingredient != Inventory.MONEY && recipe.getRequirement(ingredient) > 0) {
+                cupsRemaining = cupsRemainingAfterRequest(cups, ingredient.getTotalQuantity(), recipe.getRequirement(ingredient));
+                if (cupsRemaining < minimumDifference) {
+                    minimumDifference = cupsRemaining;
+                    constrainedIngredient = ingredient;
+                }
             }
         }
-        return minimumDifference;
+        return constrainedIngredient;
     }
 
     public static int numberOfCups(int totalQuantity, int quantityPerCup) {
