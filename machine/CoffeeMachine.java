@@ -4,8 +4,10 @@ import java.util.Scanner;
 
 public class CoffeeMachine {
     private enum Messages {
-        PROMPT("Write how many %s of %s the coffee machine has:"),
-        PROMPT_CUPS_OF_COFFEE("Write how many cups of coffee you will need:"),
+        PROMPT_FILL("Write how many %s of %s you want to add:"),
+        PROMPT_ACTION("Write action (buy, fill, take):"),
+        PROMPT_SELECTION("What do you want to buy? 1 - espresso, 2 - latte, 3 - cappuccino:"),
+        WITHDRAW("I gave you $%s"),
         RESPONSE_YES("Yes, I can make that amount of coffee"),
         RESPONSE_NO("No, I can make only %s cup(s) of coffee"),
         RESPONSE_YES_AND("Yes, I can make that amount of coffee (and even %s more than that)");
@@ -21,96 +23,125 @@ public class CoffeeMachine {
         }
     }
 
-    private enum UnitsOfMeasure {
-        ML("ml"), G("g");
-
-        private String text;
-
-        UnitsOfMeasure(String text) {
-            this.text = text;
-        }
-
-        public String getText() {
-            return text;
-        }
-    }
-
-    private enum Ingredients {
-        WATER("water", 200, UnitsOfMeasure.ML),
-        MILK("milk", 50, UnitsOfMeasure.ML),
-        BEANS("coffee beans", 15, UnitsOfMeasure.G);
-
-        private String text;
-        private int totalQuantity;
-        private int quantityPerCup;
-        private UnitsOfMeasure unitOfMeasure;
-
-        Ingredients(String text, int quantityPerCup, UnitsOfMeasure unitOfMeasure) {
-            this.text = text;
-            this.quantityPerCup = quantityPerCup;
-            this.unitOfMeasure = unitOfMeasure;
-            this.totalQuantity = 0;
-        }
-
-        public String getText() {
-            return text;
-        }
-
-        public String getUnitOfMeasureText() {
-            return unitOfMeasure.getText();
-        }
-
-        public void setTotalQuantity(int totalQuantity) {
-            this.totalQuantity = totalQuantity;
-        }
-
-        public int numberOfCups() {
-            if (totalQuantity == 0) {
-                return 0;
-            } else {
-                return totalQuantity / quantityPerCup;
-            }
-        }
-
-        public int cupsRemainingAfterRequest(int cups) {
-            return numberOfCups() - cups;
-        }
-    }
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        int totalWater = getInput(scanner, Messages.PROMPT, Ingredients.WATER.getUnitOfMeasureText(), Ingredients.WATER.getText());
-        Ingredients.WATER.setTotalQuantity(totalWater);
-        int totalMilk = getInput(scanner, Messages.PROMPT, Ingredients.MILK.getUnitOfMeasureText(), Ingredients.MILK.getText());
-        Ingredients.MILK.setTotalQuantity(totalMilk);
-        int totalBeans = getInput(scanner, Messages.PROMPT, Ingredients.BEANS.getUnitOfMeasureText(), Ingredients.BEANS.getText());
-        Ingredients.BEANS.setTotalQuantity(totalBeans);
-        int requiredCups = getInput(scanner, Messages.PROMPT_CUPS_OF_COFFEE);
-        checkRequest(requiredCups);
+        printInventory();
+        fulfillRequest(getStringInput(Messages.PROMPT_ACTION));
+        printInventory();
     }
 
-    public static int getInput(Scanner scanner, Messages prompt, String... strings) {
+    private static void fulfillRequest(String action) {
+        switch (action.toLowerCase()) {
+            case "buy":
+                buy();
+                break;
+            case "fill":
+                fill();
+                break;
+            case "take":
+                take();
+                break;
+        }
+    }
+
+    private static void buy() {
+        updateInventory(getIntInput(Messages.PROMPT_SELECTION), 1);
+    }
+
+    private static void updateInventory(int selection, int numberOfCups) {
+        Recipe recipe = Recipe.CAPPUCCINO;
+        switch (selection) {
+            case 1:
+                recipe = Recipe.ESPRESSO;
+                break;
+            case 2:
+                recipe = Recipe.LATTE;
+                break;
+            case 3:
+                recipe = Recipe.CAPPUCCINO;
+                break;
+        }
+        for (Inventory ingredient : recipe.getIngredients()) {
+            ingredient.setTotalQuantity(ingredient.getTotalQuantity() - recipe.getRequirement(ingredient) * numberOfCups);
+        }
+    }
+
+    private static void fill() {
+        int totalWater = getIntInput(Messages.PROMPT_FILL, Inventory.WATER.getUOM().getShortText(), Inventory.WATER.getText());
+        Inventory.WATER.setTotalQuantity(Inventory.WATER.getTotalQuantity() + totalWater);
+        int totalMilk = getIntInput(Messages.PROMPT_FILL, Inventory.MILK.getUOM().getShortText(), Inventory.MILK.getText());
+        Inventory.MILK.setTotalQuantity(Inventory.MILK.getTotalQuantity() + totalMilk);
+        int totalBeans = getIntInput(Messages.PROMPT_FILL, Inventory.BEANS.getUOM().getShortText(), Inventory.BEANS.getText());
+        Inventory.BEANS.setTotalQuantity(Inventory.BEANS.getTotalQuantity() + totalBeans);
+        int totalCups = getIntInput(Messages.PROMPT_FILL, Inventory.CUPS.getUOM().getShortText(), Inventory.CUPS.getText());
+        Inventory.CUPS.setTotalQuantity(Inventory.CUPS.getTotalQuantity() + totalCups);
+    }
+
+    private static void take() {
+        Messages.WITHDRAW.print(Integer.toString(Inventory.MONEY.getTotalQuantity()));
+        Inventory.MONEY.setTotalQuantity(0);
+    }
+
+    private static int getIntInput(Messages prompt, String... strings) {
+        Scanner s = new Scanner(System.in);
         prompt.print(strings);
-        return scanner.nextInt();
+        return s.nextInt();
     }
 
-    private static void printIngredients(int cups) {
-        final int WATER_PER_CUP = 200;
-        final int MILK_PER_CUP = 50;
-        final int COFFEE_BEANS_PER_CUP = 15;
-        System.out.println(String.format("For %d cups of coffee you will need:\n" +
-                "%d ml of water\n" +
-                "%d ml of milk\n" +
-                "%d g of coffee beans\n", cups, WATER_PER_CUP * cups, MILK_PER_CUP * cups, COFFEE_BEANS_PER_CUP * cups));
+    private static String getStringInput(Messages prompt, String... strings) {
+        Scanner s = new Scanner(System.in);
+        prompt.print(strings);
+        return s.nextLine();
     }
 
-    private static void checkRequest (int cups) {
-        int maxCups = Math.min(Math.min(Ingredients.WATER.cupsRemainingAfterRequest(cups), Ingredients.MILK.cupsRemainingAfterRequest(cups)), Ingredients.BEANS.cupsRemainingAfterRequest(cups));
-        if (maxCups > 0) {
-            Messages.RESPONSE_YES_AND.print(Integer.toString(maxCups));
-        } else if (maxCups < 0) {
-            Messages.RESPONSE_NO.print(Integer.toString(cups + maxCups));
+    private static void printRequirements(int cups, Recipe recipe) {
+        System.out.println(String.format("For %d cups of %s you will need:\n", cups, recipe.getText()));
+        for (Inventory ingredient : recipe.getIngredients()) {
+            System.out.println(String.format("%d %s of %s\n", recipe.getRequirement(ingredient), ingredient.getUOM().getShortText(), ingredient.getText()));
+        }
+        System.out.println(String.format("The total price will be %d %s", recipe.getPrice(), Inventory.MONEY.getUOM().getShortText()));
+    }
+
+    private static void printInventory() {
+        System.out.println("The coffee machine has:");
+        System.out.println(String.format("%d %s of %s", Inventory.WATER.getTotalQuantity(), Inventory.WATER.getUOM().getShortText(), Inventory.WATER.getText()));
+        System.out.println(String.format("%d %s of %s", Inventory.MILK.getTotalQuantity(), Inventory.MILK.getUOM().getShortText(), Inventory.MILK.getText()));
+        System.out.println(String.format("%d %s of %s", Inventory.BEANS.getTotalQuantity(), Inventory.BEANS.getUOM().getShortText(), Inventory.BEANS.getText()));
+        System.out.println(String.format("%d %s", Inventory.CUPS.getTotalQuantity(), Inventory.CUPS.getUOM().getShortText()));
+        System.out.println(String.format("%s%d of %s", Inventory.MONEY.getUOM().getPrefix(), Inventory.MONEY.getTotalQuantity(), Inventory.MONEY.getText()));
+    }
+
+    private static void checkRequest (int cups, Recipe recipe) {
+        int minimumDifference = getMinimumDifference(cups, recipe);
+        if (minimumDifference > 0) {
+            Messages.RESPONSE_YES_AND.print(Integer.toString(minimumDifference));
+        } else if (minimumDifference < 0) {
+            Messages.RESPONSE_NO.print(Integer.toString(cups + minimumDifference));
         } else {
             Messages.RESPONSE_YES.print();
         }
+    }
+
+    private static int getMinimumDifference(int cups, Recipe recipe) {
+        int minimumDifference = Integer.MAX_VALUE;
+        int cupsRemaining;
+        for (Inventory ingredient : recipe.getIngredients()) {
+            cupsRemaining = cupsRemainingAfterRequest(cups, ingredient.getTotalQuantity(), recipe.getRequirement(ingredient));
+            if (cupsRemaining < minimumDifference) {
+                minimumDifference = cupsRemaining;
+            }
+        }
+        return minimumDifference;
+    }
+
+    public static int numberOfCups(int totalQuantity, int quantityPerCup) {
+        if (quantityPerCup == 0) {
+            return 0;
+        } else {
+            return totalQuantity / quantityPerCup;
+        }
+    }
+
+    public static int cupsRemainingAfterRequest(int cups, int totalQuantity, int quantityPerCup) {
+        return numberOfCups(totalQuantity, quantityPerCup) - cups;
     }
 }
